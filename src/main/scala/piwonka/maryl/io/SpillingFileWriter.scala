@@ -57,7 +57,7 @@ case class SpillingFileWriter[U](spillDir:Path, spillBufferSize:Int, spillThresh
   }
 
   private def spill(elements: List[(String, U)]) = {
-    val spillFileName = Path.mergePaths(spillDir,new Path(s"Spill${spillCnt}_Id${Thread.currentThread().getId}_Partition")).toString
+    val spillFileName = Path.mergePaths(spillDir,new Path(s"/Spill${spillCnt}_Id${Thread.currentThread().getId}_Partition")).toString
     spillCnt += 1
     val sortedElements = elements.sortBy(_._1)
     //Partition and write out pairs

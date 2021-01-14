@@ -17,7 +17,7 @@ object MapJob extends App{
 case class MapJob[T, U](context: MapReduceContext[T, U], fileIterator: FileIterator[(String, T)])(implicit fs:FileSystem,fc:FileContext){
   def run() = {
 
-    val spillDir = Path.mergePaths(context.mapOutDir,new Path(s"Mapper${sys.env("id")}"))
+    val spillDir = Path.mergePaths(context.mapOutDir,new Path(s"/Mapper${sys.env("id")}"))
     fs.mkdirs(spillDir)
     val spillingFileWriter = new SpillingFileWriter[U](spillDir, context.spillBufferSize, context.spillThreshold, context.outputParser, context.reducerCount, context.combineFunction)
 

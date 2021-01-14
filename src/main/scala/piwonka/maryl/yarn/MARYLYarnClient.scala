@@ -59,7 +59,7 @@ case class MARYLYarnClient(yarnContext: YarnContext,mapReduceContext:MapReduceCo
     //Upload Contexts
     serialize(yarnContext,"YarnContext")(yarnContext,fc)
     serialize(mapReduceContext,"MRContext")(yarnContext,fc)
-    RemoteIteratorWrapper(fs.listFiles(yarnContext.tempPath,true)).foreach(println(_))
+    RemoteIteratorWrapper(fs.listFiles(yarnContext.tempPath,true)).map(_.getPath).foreach(println)
     //Start Yarn Client
     yc.init(conf)
     yc.start()
