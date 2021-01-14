@@ -61,11 +61,12 @@ case class SpillingFileWriter[U](spillDir:Path, spillBufferSize:Int, spillThresh
     spillCnt += 1
     val sortedElements = elements.sortBy(_._1)
     //Partition and write out pairs
+    val writers = for(i<-0 until partitionCnt) yield TextFileWriter[(String,U)](new Path(spillFileName+s"$i.txt"),parser)
     for(pair<-if(combiner==null) sortedElements else combine(sortedElements)){//Foreach would be possible, but this is returning Unit and foreach isnt meant for state operations
       val partitionIndex = pair._1.hashCode % partitionCnt
-      val writer = new TextFileWriter[(String,U)](new Path(spillFileName+s"${partitionIndex}.txt"),parser)
-      writer.write(pair)
+      writers(partitionIndex).write(pair)
     }
+    writers.foreach(_.close())
   }
 
   //Sort every instance of pair(_) by key (._1), group them by key in a map, isolate values and run combiner on them

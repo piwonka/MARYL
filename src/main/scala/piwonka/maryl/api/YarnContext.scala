@@ -2,6 +2,8 @@ package piwonka.maryl.api
 
 import org.apache.hadoop.fs.{FileContext, FileSystem, Path}
 import org.apache.hadoop.yarn.conf.YarnConfiguration
+
+import scala.tools.nsc.io.File
 case class YarnContext
 (
  localJarPath: Path,
@@ -10,7 +12,5 @@ case class YarnContext
  amCores:Int=1,
  amPriority:Int=0,
  amQueue:String="default",
- tempPath:Path = new Path ("Maryl"),
- fs:FileSystem=FileSystem.get(new YarnConfiguration()),
- fc:FileContext = FileContext.getFileContext
-)
+ tempPath:Path = new Path ("Maryl")
+)extends Serializable

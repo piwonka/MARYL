@@ -32,6 +32,7 @@ case class PersistentFileMerger[U](id: Int, fileCntPerMerge: Int, dir: Path, out
     val merger = FileMergingIterator[U](inputParser, comparer, files.filter(fs.exists(_)))
     val writer = TextFileWriter[U](mergeOutput, outputParser)
     merger.map(_.get).foreach(writer.write)
+    writer.close()
     mergeOutput
   }
 }

@@ -1,13 +1,14 @@
 package piwonka.maryl.yarn
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.hadoop.fs.{FileContext, FileSystem, Path}
 import org.apache.hadoop.yarn.api.ApplicationConstants
 import org.apache.hadoop.yarn.api.records._
 import org.apache.hadoop.yarn.client.api.{YarnClient, YarnClientApplication}
 import org.apache.hadoop.yarn.conf.YarnConfiguration
 import org.slf4j.LoggerFactory
 import piwonka.maryl.api.{MapReduceContext, YarnContext}
+import piwonka.maryl.io.RemoteIteratorWrapper
 import piwonka.maryl.yarn.YarnAppUtils._
 
 import scala.Console.println
@@ -20,6 +21,7 @@ case class MARYLYarnClient(yarnContext: YarnContext,mapReduceContext:MapReduceCo
   private val logger = LoggerFactory.getLogger(classOf[MARYLYarnClient])
   implicit val conf:YarnConfiguration = new YarnConfiguration()
   implicit val fs:FileSystem = FileSystem.get(conf)
+  implicit val fc:FileContext = FileContext.getFileContext(fs.getUri)
   implicit val yc:YarnClient = YarnClient.createYarnClient()
   val context:ContainerLaunchContext = createAMContainerLaunchContext
 
@@ -32,35 +34,32 @@ case class MARYLYarnClient(yarnContext: YarnContext,mapReduceContext:MapReduceCo
         " 1> " + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout" +
         " 2> " + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stderr"
     )
-    logger.info("AM Command:"+ commands)
-
     //--------RESOURCES---------
     //SKIPPED HERE TO KEEP THIS FUNCTION STATELESS (Resources are uploaded and set in submit()
-    logger.info("LocalResource management postponed until submission...")
     //----------ENVIRONMENT---------
     val addEnvVars:Map[String,String] =
       Map(
-        "HDFSJarPath" -> fs.makeQualified(Path.mergePaths(yarnContext.tempPath,new Path("MarylApp.jar"))).toString,
-        "MRContext" -> fs.makeQualified(Path.mergePaths(yarnContext.tempPath,new Path("MRContext.obj"))).toString,
-        "YarnContext" ->fs.makeQualified(Path.mergePaths(yarnContext.tempPath,new Path("YarnContext.obj"))).toString
+        "HDFSJarPath" -> fs.makeQualified(Path.mergePaths(yarnContext.tempPath,new Path("/MarylApp.jar"))).toString,
+        "MRContext" -> fs.makeQualified(Path.mergePaths(yarnContext.tempPath,new Path("/MRContext.obj"))).toString,
+        "YarnContext" ->fs.makeQualified(Path.mergePaths(yarnContext.tempPath,new Path("/YarnContext.obj"))).toString
         )
     println(addEnvVars)
     val environment:Map[String,String] = buildEnvironment(addEnvVars)
-    logger.info("AM Environment:"+ environment)
     //set up amContainer
     val amContainer:ContainerLaunchContext = createContainerContext(commands,null,environment)
     amContainer
   }
 
   def submit:Future[Path]= {
-    //Upload Contexts
-    serialize(yarnContext,"YarnContext")(yarnContext)
-    serialize(mapReduceContext,"MRContext")(yarnContext)
     //upload the Jar and add to AM-ContainerLaunchContext
     val localResources:Map[String,LocalResource] =
-      Map("MarylApp.jar" -> uploadFile(yarnContext.localJarPath,Path.mergePaths(yarnContext.tempPath,new Path("MarylApp.jar"))))
+      Map("MarylApp.jar" -> uploadFile(yarnContext.localJarPath,Path.mergePaths(yarnContext.tempPath,new Path("/MarylApp.jar"))))
       context.setLocalResources(localResources.asJava)
     println(localResources)
+    //Upload Contexts
+    serialize(yarnContext,"YarnContext")(yarnContext,fc)
+    serialize(mapReduceContext,"MRContext")(yarnContext,fc)
+    RemoteIteratorWrapper(fs.listFiles(yarnContext.tempPath,true)).foreach(println(_))
     //Start Yarn Client
     yc.init(conf)
     yc.start()

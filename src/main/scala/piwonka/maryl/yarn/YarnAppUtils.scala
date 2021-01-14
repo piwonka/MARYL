@@ -4,6 +4,7 @@ import java.io.{File, ObjectInputStream, ObjectOutputStream}
 import java.nio.ByteBuffer
 import java.util
 
+import org.apache.commons.lang3.SerializationUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{CreateFlag, FileContext, FileSystem, Path}
 import org.apache.hadoop.io.DataOutputBuffer
@@ -61,6 +62,7 @@ object YarnAppUtils {
     val context: ContainerLaunchContext = ContainerLaunchContext.newInstance(jResources, jEnvironment, jCommands, null, allTokens, null)
     context
   }
+
   private def allTokens: ByteBuffer = {
     // creating the credentials for container execution
     val credentials = UserGroupInformation.getCurrentUser.getCredentials
@@ -69,16 +71,29 @@ object YarnAppUtils {
     ByteBuffer.wrap(dob.getData, 0, dob.getLength)
   }
 
-  def serialize(obj:Any,fileName:String)(implicit yc:YarnContext):Unit={
-    val location:Path = yc.fs.makeQualified(Path.mergePaths(yc.tempPath,new Path(s"$fileName.obj")))
-    Using(new ObjectOutputStream(yc.fc.create(location, util.EnumSet.of(CreateFlag.CREATE, CreateFlag.APPEND))))
-    {
-      _.writeObject(obj)
+  def serialize(obj: Serializable, fileName: String)(implicit yc: YarnContext, fc: FileContext): Unit = {
+    println("Serialize")
+    val location: Path = fc.makeQualified(Path.mergePaths(yc.tempPath, new Path(s"/$fileName.obj")))
+    val test = Using(fc.create(location, util.EnumSet.of(CreateFlag.CREATE, CreateFlag.OVERWRITE))){ writer =>
+      SerializationUtils.serialize(obj, writer)
+      //writer.hsync()
     }
+    if (test.isFailure) {
+      test.failed.get.printStackTrace()
+      System.exit(444)
+    }
+    println(s"Wrote $location")
   }
-  def deserialize(location:Path):Object={
-    Using(new ObjectInputStream(FileContext.getFileContext.open(location))){reader=>
-      return reader.readObject()
+
+  def deserialize(location: Path): Any = {
+    println("Deserialize")
+    val test = Using(FileContext.getFileContext.open(location)) { reader =>
+      SerializationUtils.deserialize[Any](reader)
     }
+    if (test.isFailure) {
+      test.failed.get.printStackTrace()
+      System.exit(444)
+    }
+    test.get
   }
 }

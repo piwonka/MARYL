@@ -1,7 +1,8 @@
 package piwonka.maryl.mapreduce
 
-import org.apache.hadoop.fs.Path
+import org.apache.hadoop.fs.{FileContext, FileSystem, Path}
 import org.apache.hadoop.yarn.api.records.{Container, ContainerId, FinalApplicationStatus}
+import org.apache.hadoop.yarn.conf.YarnConfiguration
 import org.slf4j.LoggerFactory
 import piwonka.maryl.api.{MapReduceContext, YarnContext}
 import piwonka.maryl.mapreduce.MRJobType.MRJobType
@@ -12,15 +13,20 @@ import scala.collection.mutable
 
 object DistributedMapReduceOperation {
   def main(args: Array[String]): Unit = {
-    val yc = deserialize(new Path(sys.env.get("YarnContext").get)).asInstanceOf[YarnContext]
-    val mrc =deserialize(new Path(sys.env.get("MRContext").get)).asInstanceOf[MapReduceContext[Any, Any]]
+    println("DMRO Started")
+    println(sys.env("YarnContext"),sys.env("MRContext"))
+    println(deserialize(new Path(sys.env("YarnContext"))))
+    implicit val fs = FileSystem.get(new YarnConfiguration())
+    implicit val fc = FileContext.getFileContext(fs.getUri)
+    val yc = deserialize(new Path(sys.env("YarnContext"))).asInstanceOf[YarnContext]
+    val mrc =deserialize(new Path(sys.env("MRContext"))).asInstanceOf[MapReduceContext[Any, Any]]
     DistributedMapReduceOperation(yc,mrc).start()
   }
 }
 
-case class DistributedMapReduceOperation(yc:YarnContext,mrc:MapReduceContext[Any,Any]) {
+case class DistributedMapReduceOperation(yc:YarnContext,mrc:MapReduceContext[Any,Any])(implicit fileSystem:FileSystem,fileContext:FileContext) {
   private val logger = LoggerFactory.getLogger(classOf[DistributedMapReduceOperation])
-  private val applicationMaster = ApplicationMaster(this)(yc.fs,yc.fc)
+  private val applicationMaster = ApplicationMaster(this)
   private val jobs: mutable.HashMap[ContainerId,(MRJobType,Container)] = mutable.HashMap()
   private var finished = 0
 

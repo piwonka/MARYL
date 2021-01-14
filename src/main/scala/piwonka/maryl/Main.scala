@@ -3,6 +3,8 @@ package piwonka.maryl
 import org.apache.hadoop.fs.Path
 import piwonka.maryl.api.{MapReduceBuilder, MapReduceContext, YarnContext}
 
+import scala.tools.nsc.io.File
+
 object Main extends App {
   //Setup
   val mapFunction = (key: String, x: Int) => List((key, x + 1))
@@ -24,8 +26,8 @@ object Main extends App {
   val comparer: ((String, Int), (String, Int)) => (String, Int) = (p1, p2) => if (Integer.parseInt(p1._1) < Integer.parseInt(p2._1)) p1 else p2
   val yarnContext = YarnContext(new Path(args(0)), "MarylApp")
   val inFile = new Path(args(1))
-  val mapOutDir = Path.mergePaths(yarnContext.tempPath,new Path("MapResults\\"))
-  val copyDir = Path.mergePaths(yarnContext.tempPath,new Path("CopyAndMerge\\"))
+  val mapOutDir = Path.mergePaths(yarnContext.tempPath,new Path("/MapResults"))
+  val copyDir = Path.mergePaths(yarnContext.tempPath,new Path("/CopyAndMerge"))
   val outFile = new Path(args(2))
   val context: MapReduceContext[Int, Int] =
     MapReduceContext(

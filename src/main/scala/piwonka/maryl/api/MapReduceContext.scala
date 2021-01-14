@@ -3,6 +3,7 @@ package piwonka.maryl.api
 import org.apache.hadoop.fs.Path
 
 import scala.reflect.runtime.universe._
+
 case class MapReduceContext[T, U]
 (
   mapperCount: Int,
@@ -22,4 +23,4 @@ case class MapReduceContext[T, U]
   reduceInputParser: String => (String, U),
   outputParser: ((String,U)) => String,
   fileCntPerMerge: Int,
-  pairComparer:((String,U),(String,U))=>(String,U))(implicit tag:TypeTag[T],tag2:TypeTag[U])
+  pairComparer:((String,U),(String,U))=>(String,U))(implicit tag:TypeTag[T],tag2:TypeTag[U]) extends Serializable

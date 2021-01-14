@@ -21,4 +21,8 @@ case class TextFileWriter[T](file: Path, parser: T => String)(implicit fc:FileCo
     openedFile.write(parser(t) + "\n")
     openedFile.flush()
   } //#todo:close writer
+
+  def close():Unit = {
+    openedFile.close()
+  }
 }
