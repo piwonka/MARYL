@@ -1,6 +1,6 @@
 package piwonka.maryl.yarn
 
-import org.apache.hadoop.fs.{FileContext, FileSystem, Path}
+import org.apache.hadoop.fs.{BlockLocation, FileContext, FileSystem, Path}
 import org.apache.hadoop.yarn.api.ApplicationConstants
 import org.apache.hadoop.yarn.api.protocolrecords.RegisterApplicationMasterResponse
 import org.apache.hadoop.yarn.api.records._
@@ -47,6 +47,10 @@ case class ApplicationMaster(dmro:DistributedMapReduceOperation)(implicit fs:Fil
   }
 
   def requestContainers(count:Int)={
+    /*val mapRequests:Seq[ContainerRequest] = for(i<-0 until inputFileBlocks.length-1) yield new ContainerRequest(workerResources,inputFileBlocks(i).getHosts,null,Priority.newInstance(1))
+    mapRequests.foreach(rmClient.addContainerRequest)
+    val mapRequests:Seq[ContainerRequest] = for(i<-0 until inputFileBlocks.length-1) yield new ContainerRequest(workerResources,inputFileBlocks(i).getHosts,null,Priority.newInstance(1))
+    */
     val previousAttempts: List[Container] = response.getContainersFromPreviousAttempts.asScala.toList
     val numToRequest: Int = count - previousAttempts.length
     val requests:Seq[ContainerRequest] = (0 until numToRequest).map(_ => new ContainerRequest(workerResources, null, null, Priority.newInstance(1)))//#todo:Magic

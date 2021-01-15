@@ -1,6 +1,7 @@
 package piwonka.maryl.mapreduce
 
-import org.apache.hadoop.fs.{FileContext, FileSystem, Path}
+import org.apache.hadoop.fs.{BlockLocation, FSDataInputStream, FileContext, FileSystem, Path}
+import org.apache.hadoop.io.compress.{CodecPool, CompressionCodecFactory}
 import org.apache.hadoop.yarn.api.records.{Container, ContainerId, FinalApplicationStatus}
 import org.apache.hadoop.yarn.conf.YarnConfiguration
 import org.slf4j.LoggerFactory
@@ -10,6 +11,7 @@ import piwonka.maryl.yarn.ApplicationMaster
 import piwonka.maryl.yarn.YarnAppUtils.deserialize
 
 import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
 
 object DistributedMapReduceOperation {
   def main(args: Array[String]): Unit = {
@@ -20,11 +22,13 @@ object DistributedMapReduceOperation {
     implicit val fc = FileContext.getFileContext(fs.getUri)
     val yc = deserialize(new Path(sys.env("YarnContext"))).asInstanceOf[YarnContext]
     val mrc =deserialize(new Path(sys.env("MRContext"))).asInstanceOf[MapReduceContext[Any, Any]]
-    DistributedMapReduceOperation(yc,mrc).start()
+    val status = fs.getFileStatus(mrc.inputFile)
+    val blockLocations = fs.getFileBlockLocations(mrc.inputFile,0,status.getLen)
+    DistributedMapReduceOperation(yc,mrc,blockLocations.length-1).start()
   }
 }
 
-case class DistributedMapReduceOperation(yc:YarnContext,mrc:MapReduceContext[Any,Any])(implicit fileSystem:FileSystem,fileContext:FileContext) {
+case class DistributedMapReduceOperation(yc:YarnContext,mrc:MapReduceContext[Any,Any],mapperCount:Int)(implicit fileSystem:FileSystem,fileContext:FileContext) {
   private val logger = LoggerFactory.getLogger(classOf[DistributedMapReduceOperation])
   private val applicationMaster = ApplicationMaster(this)
   private val jobs: mutable.HashMap[ContainerId,(MRJobType,Container)] = mutable.HashMap()
@@ -32,7 +36,7 @@ case class DistributedMapReduceOperation(yc:YarnContext,mrc:MapReduceContext[Any
 
   def receiveContainers(containers: mutable.Buffer[Container]): Unit = {
     containers.foreach(c =>
-      if(jobs.count(_._2._1==MRJobType.MAP)<mrc.mapperCount){
+      if(jobs.count(_._2._1==MRJobType.MAP)<mapperCount){
         jobs.put(c.getId,(MRJobType.MAP,c))
         val context = applicationMaster.setUpWorkerContainerLaunchContext(MRJobType.MAP)
         applicationMaster.startContainer(c,context)
@@ -52,17 +56,14 @@ case class DistributedMapReduceOperation(yc:YarnContext,mrc:MapReduceContext[Any
     finished += 1
     jobs.remove(containerId)
     applicationMaster.freeContainer(containerId)
-    if(finished==mrc.mapperCount){
+    if(finished==mapperCount){
       startReducers()
     }
-    else if(finished==mrc.mapperCount+mrc.reducerCount){
+    else if(finished==mapperCount+mrc.reducerCount){
       applicationMaster.unregisterApplication(FinalApplicationStatus.SUCCEEDED,"All Jobs completed.")
     }
   }
-
   def start(): Unit = {
-    val containerCnt = mrc.mapperCount + mrc.reducerCount
-    applicationMaster.requestContainers(containerCnt)
+    applicationMaster.requestContainers(mapperCount+mrc.reducerCount)
   }
-
 }

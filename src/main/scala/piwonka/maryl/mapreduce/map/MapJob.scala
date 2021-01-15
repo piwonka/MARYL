@@ -3,7 +3,7 @@ package piwonka.maryl.mapreduce.map
 import org.apache.hadoop.fs.{FileContext, FileSystem, Path}
 import org.apache.hadoop.yarn.conf.YarnConfiguration
 import piwonka.maryl.api.{MapReduceContext, YarnContext}
-import piwonka.maryl.io.{FileIterator, SpillingFileWriter}
+import piwonka.maryl.io.{FileBlockIterator, FileIterator, SpillingFileWriter}
 import piwonka.maryl.yarn.YarnAppUtils.deserialize
 
 object MapJob extends App{
@@ -11,10 +11,10 @@ object MapJob extends App{
   val mrc = deserialize(new Path(sys.env("MRContext"))).asInstanceOf[MapReduceContext[Any,Any]]
   implicit val fs = FileSystem.get(new YarnConfiguration())
   implicit val fc = FileContext.getFileContext(fs.getUri)
-  val job = MapJob(mrc,new FileIterator[(String, Any)](mrc.inputFile,mrc.inputParser))
+  val job = MapJob(mrc,new FileBlockIterator[(String, Any)](mrc.inputFile,mrc.inputParser,Integer.parseInt(sys.env("id"))))
   job.run()
 }
-case class MapJob[T, U](context: MapReduceContext[T, U], fileIterator: FileIterator[(String, T)])(implicit fs:FileSystem,fc:FileContext){
+case class MapJob[T, U](context: MapReduceContext[T, U], fileIterator: FileBlockIterator[(String, T)])(implicit fs:FileSystem,fc:FileContext){
   def run() = {
 
     val spillDir = Path.mergePaths(context.mapOutDir,new Path(s"/Mapper${sys.env("id")}"))

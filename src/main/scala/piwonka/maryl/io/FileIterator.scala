@@ -10,8 +10,8 @@ import org.apache.hadoop.fs.{FileContext, Path}
  * @param file The file that is being read
  * @param parser The function that is used to parse the file input to the desired type
  * */
-case class FileIterator[T](file:Path, parser:String=>T)(implicit fc:FileContext) extends Iterator[Option[T]] with FileReader[T]{
-  val openedFile:BufferedReader= new BufferedReader(new InputStreamReader(fc.open(file)))
+case class FileIterator[T](file:Path, parser:String=>T)(implicit fc:FileContext) extends FileReader[T]{
+  val input:BufferedReader= new BufferedReader(new InputStreamReader(fc.open(file)))
   var nextVal:Option[T] = Option.empty
 
   /**
@@ -24,7 +24,7 @@ case class FileIterator[T](file:Path, parser:String=>T)(implicit fc:FileContext)
     nextVal
   }
 
-  override def hasNext: Boolean = if(peek().isDefined) true else{openedFile.close();false}
+  override def hasNext: Boolean = if(peek().isDefined) true else{input.close();false}
   /**
    * @return An Option[T] that contains the next value of the file if present and advances the pointer further
    * */
@@ -35,7 +35,7 @@ case class FileIterator[T](file:Path, parser:String=>T)(implicit fc:FileContext)
       return tmp
     }
     try{
-      val nextInput = Option(openedFile.readLine())
+      val nextInput = Option(input.readLine())
       if(nextInput.isDefined) Some(parser.apply(nextInput.get))
       else Option.empty
     }
