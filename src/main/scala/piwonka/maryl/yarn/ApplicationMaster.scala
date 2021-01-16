@@ -1,5 +1,6 @@
 package piwonka.maryl.yarn
 
+import org.apache.hadoop.fs.FileSystem
 import org.apache.hadoop.yarn.api.protocolrecords.RegisterApplicationMasterResponse
 import org.apache.hadoop.yarn.api.records._
 import org.apache.hadoop.yarn.client.api.AMRMClient.ContainerRequest
@@ -9,7 +10,7 @@ import piwonka.maryl.api.YarnContext
 import piwonka.maryl.yarn.callback.{NMCallbackHandler, RMCallbackHandler}
 
 
-abstract class ApplicationMaster(yarnContext: YarnContext) {
+abstract class ApplicationMaster(yarnContext: YarnContext)(implicit fs:FileSystem) {
   protected implicit val config: YarnConfiguration = new YarnConfiguration()
   protected val nmClient: NMClientAsync = createNMClient(NMCallbackHandler(this))
   protected val rmClient: AMRMClientAsync[ContainerRequest] = createRMClient(RMCallbackHandler(this))
@@ -37,13 +38,13 @@ abstract class ApplicationMaster(yarnContext: YarnContext) {
     rmClient
   }
 
-  def requestContainer(containerRequest: ContainerRequest) = rmClient.addContainerRequest(containerRequest)
+  protected def requestContainer(containerRequest: ContainerRequest) = rmClient.addContainerRequest(containerRequest)
 
-  def startContainer(container: Container, context: ContainerLaunchContext) = {
+  protected def startContainer(container: Container, context: ContainerLaunchContext) = {
     nmClient.startContainerAsync(container, context)
   }
 
-  def stop(): Unit = {
+  private def stop(): Unit = {
     try {
       nmClient.stop()
       rmClient.stop()
@@ -53,15 +54,18 @@ abstract class ApplicationMaster(yarnContext: YarnContext) {
     }
   }
 
-  def unregisterApplication(appStatus: FinalApplicationStatus, appMessage: String): Unit = {
+  protected def unregisterApplication(appStatus: FinalApplicationStatus, appMessage: String): Unit = {
     try rmClient.unregisterApplicationMaster(appStatus, appMessage, null)
     catch {
       case e: Exception => e.printStackTrace()
     }
     finally stop()
   }
+  protected def deleteTempFiles():Unit={
+    fs.delete(yarnContext.tempPath,true)
+  }
 
-  def freeContainer(containerId: ContainerId): Unit = rmClient.releaseAssignedContainer(containerId)
+  protected def freeContainer(containerId: ContainerId): Unit = rmClient.releaseAssignedContainer(containerId)
 
   def handleContainerAllocation(allocatedContainers: Container): Unit
 

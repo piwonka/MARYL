@@ -1,5 +1,6 @@
 package piwonka.maryl.mapreduce
 
+import com.google.common.io.PatternFilenameFilter
 import org.apache.hadoop.fs.{BlockLocation, FileContext, FileSystem, Path}
 import org.apache.hadoop.yarn.api.ApplicationConstants
 import org.apache.hadoop.yarn.api.records.{Container, ContainerId, ContainerLaunchContext, ContainerStatus, FinalApplicationStatus, LocalResource, Priority}
@@ -7,9 +8,11 @@ import org.apache.hadoop.yarn.client.api.AMRMClient.ContainerRequest
 import org.apache.hadoop.yarn.conf.YarnConfiguration
 import org.slf4j.LoggerFactory
 import piwonka.maryl.api.{MapReduceContext, YarnContext}
+import piwonka.maryl.io.{FileFinder, FileMergingIterator, TextFileWriter}
 import piwonka.maryl.mapreduce.MRJobType.MRJobType
 import piwonka.maryl.yarn.ApplicationMaster
 import piwonka.maryl.yarn.YarnAppUtils.{buildEnvironment, createContainerContext, deserialize, setUpLocalResourceFromPath}
+
 import scala.collection.mutable
 
 object DistributedMapReduceOperation {
@@ -25,12 +28,13 @@ object DistributedMapReduceOperation {
   }
 }
 
-case class DistributedMapReduceOperation(yc: YarnContext, mrc: MapReduceContext[Any, Any], mapperCount: Int, inputBlockLocations: Array[BlockLocation])(implicit fs: FileSystem, fc: FileContext) extends ApplicationMaster(yc) {
+case class DistributedMapReduceOperation(yc: YarnContext, mrc: MapReduceContext[Any, Any], mapperCount: Int, inputBlockLocations: Array[BlockLocation])(implicit fs: FileSystem, fc: FileContext) extends ApplicationMaster(yc){
   private val logger = LoggerFactory.getLogger(classOf[DistributedMapReduceOperation])
   private val jobs: mutable.HashMap[ContainerId, (MRJobType, Container)] = mutable.HashMap()
   private val workedBlocks: Array[Boolean] = new Array(inputBlockLocations.length)
   private var finished = 0
-  private var mapperCnt, reducerCnt = 0
+  private var mapperCnt=0
+  private var reducerCnt=0
 
   def setUpWorkerLaunchContext(jobType: MRJobType): ContainerLaunchContext = {
     //SetUp Worker
@@ -61,50 +65,66 @@ case class DistributedMapReduceOperation(yc: YarnContext, mrc: MapReduceContext[
     createContainerContext(workerCommand, localResource, workerEnv)
   }
 
-
-
-  private def startReducers():Unit = {
-    val reducerContainers = jobs.filter(_._2._1 == MRJobType.REDUCE).map(_._2._2).toList
-    for (i <- reducerContainers.indices) {
-      val context = setUpWorkerLaunchContext(MRJobType.REDUCE)
-      startContainer(reducerContainers(i), context)
-    }
-  }
-
   def start(): Unit = {
     println(s"Requesting $mapperCount mappers and ${mrc.reducerCount} reducers...")
     val mapContainerRequests: Seq[ContainerRequest] = for (i <- 0 until mapperCount) yield new ContainerRequest(workerResources, inputBlockLocations(i).getHosts, null, Priority.newInstance(1))
     mapContainerRequests.foreach(requestContainer)
     val reduceContainerRequests: Seq[ContainerRequest] = (0 until mrc.reducerCount).map(_ => new ContainerRequest(workerResources, null, null, Priority.newInstance(1)))
     reduceContainerRequests.foreach(requestContainer)
-    println(s"Requesting $mapperCount mappers and ${mrc.reducerCount} reducers...")
   }
 
   override def handleContainerAllocation(newContainer: Container): Unit = {
-    if (jobs.count(_._2._1 == MRJobType.MAP) < mapperCount) {
+    if (jobs.count(_._2._1 == MRJobType.MAP)+finished < mapperCount) {
       println("Container Host", newContainer.getNodeHttpAddress, newContainer.getNodeId)
       inputBlockLocations.foreach(_.getHosts.foreach(println))
       jobs.put(newContainer.getId, (MRJobType.MAP, newContainer))
       val mapperLaunchContext = setUpWorkerLaunchContext(MRJobType.MAP)
       startContainer(newContainer, mapperLaunchContext)
-    } else jobs.put(newContainer.getId, (MRJobType.REDUCE, newContainer))
+    } else{
+      jobs.put(newContainer.getId, (MRJobType.REDUCE, newContainer))
+      if(finished>=mapperCount){
+        println("Starting Reducer, that was allocated after Map finished")
+        startReducer(newContainer)
+      }
+    }
   }
 
 
   override def handleContainerCompletion(containerStatus: ContainerStatus): Unit = {
     val id = containerStatus.getContainerId
     finished += 1
+    println(s"Finish:$finished")
     jobs.remove(id)
     freeContainer(id)
-    if (finished == mapperCount&&jobs.count(_._2._1==MRJobType.REDUCE)==mrc.reducerCount) {
-      startReducers()
+    if (finished == mapperCount){
+      startAllocatedReducers()
     }
     else if (finished == mapperCount + mrc.reducerCount) {
+      finalizeResults()
+      deleteTempFiles()
       unregisterApplication(FinalApplicationStatus.SUCCEEDED, "All Jobs completed.")
     }
   }
 
-  override def handleContainerError(containerId: ContainerId, error: Throwable): Unit = ???
+  private def finalizeResults(): Unit ={//REDUCERS CANT WRITE IN SAME OUTPUT FILE BECAUSE OF BLOCK REPLICATION AND FILE LEASES...
+    val reducerResults = FileFinder.find(mrc.copyDir,new PatternFilenameFilter(".+_RESULT.txt"))
+    val mergedResults = FileMergingIterator(mrc.reduceInputParser,mrc.pairComparer,reducerResults)
+    val writer = TextFileWriter(mrc.outputFile,mrc.outputParser)
+    mergedResults.map(_.get).foreach(writer.write)
+    writer.close()
+  }
+
+  private def startReducer(container:Container):Unit={
+    val context = setUpWorkerLaunchContext(MRJobType.REDUCE)
+    startContainer(container, context)
+  }
+
+  private def startAllocatedReducers():Unit = {
+    println("Starting AllocatedReducers")
+    jobs.filter(_._2._1 == MRJobType.REDUCE).map(_._2._2).foreach(startReducer)
+  }
+
+  override def handleContainerError(containerId: ContainerId, error: Throwable): Unit = println(s"ERROR: ${error.printStackTrace()}")
 
   def restartContainer(containerId: ContainerId):Unit = ???
 

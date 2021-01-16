@@ -7,6 +7,7 @@ import piwonka.maryl.io.{FileBlockIterator, FileIterator, SpillingFileWriter}
 import piwonka.maryl.yarn.YarnAppUtils.deserialize
 
 object MapJob extends App{
+  println("---MAPPER---")
   val yc = deserialize(new Path(sys.env("YarnContext"))).asInstanceOf[YarnContext]
   val mrc = deserialize(new Path(sys.env("MRContext"))).asInstanceOf[MapReduceContext[Any,Any]]
   implicit val fs = FileSystem.get(new YarnConfiguration())

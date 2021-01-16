@@ -9,7 +9,7 @@ case class FileBlockIterator[T](file: Path, parser: String => T, blockId:Int)(im
     val blockIn = fc.open(file)
     blockIn.seek(blockId * blockSize)
     val blockReader = new BufferedReader(new InputStreamReader(blockIn))
-    if(blockId!=0) blockReader.readLine() //drump a line because every block except block 1
+    if(blockId!=0) println("Omit Line:",blockReader.readLine()) //drump a line because every block except block 1 "overreads" until next newline
     blockReader
   }
   val blockSize = fc.getFileStatus(file).getBlockSize
@@ -34,7 +34,7 @@ case class FileBlockIterator[T](file: Path, parser: String => T, blockId:Int)(im
     }
   }
 
-  override def hasNext: Boolean = if (peek().isDefined&&remaining>0) true else {
+  override def hasNext: Boolean = if (peek().isDefined&&remaining>=0) true else {//#todo: CHANGED TO >= TO FORCE OVERREAD IDK IF THIS IS RIGHT
     input.close();
     false
   }

@@ -8,6 +8,7 @@ import piwonka.maryl.io._
 import piwonka.maryl.yarn.YarnAppUtils.deserialize
 
 object ReduceJob extends App{
+  println("---REDUCER---")
   val yc = deserialize(new Path(sys.env("YarnContext"))).asInstanceOf[YarnContext]
   val mrc = deserialize(new Path(sys.env("MRContext"))).asInstanceOf[MapReduceContext[Any,Any]]
   implicit val fs = FileSystem.get(new YarnConfiguration())
@@ -16,8 +17,8 @@ object ReduceJob extends App{
   job.run()
 }
 
-case class ReduceJob[U](id:Int,context: MapReduceContext[_, U])(implicit fs:FileSystem,fc:FileContext) extends Thread{
-  override def run(): Unit = {
+case class ReduceJob[U](id:Int,context: MapReduceContext[_, U])(implicit fs:FileSystem,fc:FileContext){
+  def run(): Unit = {
     println("Copy ["+id+"]")
     //Copy
     val copyDir = Path.mergePaths(context.copyDir,new Path(s"/Reducer$id"))
@@ -33,12 +34,13 @@ case class ReduceJob[U](id:Int,context: MapReduceContext[_, U])(implicit fs:File
     val persistentFileMerger = PersistentFileMerger(id, context.fileCntPerMerge, copyDir, context.outputParser, context.reduceInputParser, context.pairComparer)
     val reducerInput = persistentFileMerger.merge()
     println("Merge["+id+"] finished")
-    //Reduce
 
+    //Reduce
     while(reducerInput.hasNext){
       val input = reducerInput.groupBy(_.get._1)(_.get._2)
       val result = Reducer.reduce(context.reduceFunction,input._1,input._2)
-      val writer = TextFileWriter(context.outputFile, context.outputParser)
+      println(result)
+      val writer = TextFileWriter(Path.mergePaths(copyDir,new Path(s"/Reducer${id}_RESULT.txt")), context.outputParser)
       writer.write(result)
       writer.close()
     }
