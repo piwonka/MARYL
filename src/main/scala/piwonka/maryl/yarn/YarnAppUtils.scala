@@ -39,7 +39,6 @@ object YarnAppUtils {
     addlEnv.foreach { case (key, value) =>
       Apps.addToEnvironment(environment, key, value, File.pathSeparator)
     } //Add JarPath to Env
-    environment.asScala.foreachEntry(println(_, _))
     environment.asScala.toMap
   }
 

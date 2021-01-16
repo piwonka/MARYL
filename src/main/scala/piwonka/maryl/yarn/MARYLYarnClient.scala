@@ -72,7 +72,7 @@ case class MARYLYarnClient(yarnContext: YarnContext,mapReduceContext:MapReduceCo
     appContext.setResource(Resource.newInstance(yarnContext.amMemory, yarnContext.amCores))//Test
     appContext.setPriority(Priority.newInstance(yarnContext.amPriority))
     appContext.setQueue(yarnContext.amQueue)
-
+    appContext.setKeepContainersAcrossApplicationAttempts(false)//because containers must be nodeaware and cant really be identified, it is easier to just replace them when the application master fails.
     //submit Application to Scheduler
     yc.submitApplication(appContext)
 
