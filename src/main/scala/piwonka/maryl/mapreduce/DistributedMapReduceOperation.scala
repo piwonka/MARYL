@@ -24,7 +24,8 @@ object DistributedMapReduceOperation {
     val mrc =deserialize(new Path(sys.env("MRContext"))).asInstanceOf[MapReduceContext[Any, Any]]
     val status = fs.getFileStatus(mrc.inputFile)
     val blockLocations = fs.getFileBlockLocations(mrc.inputFile,0,status.getLen)
-    DistributedMapReduceOperation(yc,mrc,blockLocations.length-1).start()
+    println("Blöcke:",blockLocations.length)
+    DistributedMapReduceOperation(yc,mrc,blockLocations.length).start()
   }
 }
 
@@ -64,6 +65,7 @@ case class DistributedMapReduceOperation(yc:YarnContext,mrc:MapReduceContext[Any
     }
   }
   def start(): Unit = {
+    println("request "+(mapperCount+mrc.reducerCount)+" containers")
     applicationMaster.requestContainers(mapperCount+mrc.reducerCount)
   }
 }

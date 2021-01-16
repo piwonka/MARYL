@@ -10,8 +10,8 @@ import org.apache.hadoop.fs.{FileContext, Path}
  * */
 
 case class FileMergingIterator[T](parser: String => T, comparer: (T, T) => T, files: Seq[Path])(implicit fc:FileContext) extends Iterator[Option[T]] with FileReader[T] {
-  val readers = {for (file <- files) yield new FileIterator[T](file, parser)}.filter(_.hasNext).toArray //create Readers, close if empty
-  val values = readers.map(_.next()) //read values from non.empty readers
+  override val input = {for (file <- files) yield new FileIterator[T](file, parser)}.filter(_.hasNext).toArray //create Readers, close if empty
+  val values = input.map(_.next()) //read values from non.empty readers
   var nextVal: Option[T] = Option.empty
 
   /**
@@ -38,7 +38,7 @@ case class FileMergingIterator[T](parser: String => T, comparer: (T, T) => T, fi
     }
     val smallestElement = values.filter(e => e.isDefined).reduce((v1, v2) => Some(comparer.apply(v1.get, v2.get)))
     val index = values.indexOf(smallestElement)
-    values(index) = if (readers(index).hasNext) readers(index).next() else Option.empty
+    values(index) = if (input(index).hasNext) input(index).next() else Option.empty
     smallestElement
   }
 

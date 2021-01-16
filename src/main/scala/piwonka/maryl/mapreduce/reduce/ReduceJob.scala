@@ -20,7 +20,7 @@ case class ReduceJob[U](id:Int,context: MapReduceContext[_, U])(implicit fs:File
   override def run(): Unit = {
     println("Copy ["+id+"]")
     //Copy
-    val copyDir = Path.mergePaths(context.copyDir,new Path(s"Reducer$id"))
+    val copyDir = Path.mergePaths(context.copyDir,new Path(s"/Reducer$id"))
     fs.mkdirs(copyDir)
     val spillingFileWriter = new SpillingFileWriter[U](copyDir, context.copyBufferSize, context.copyBufferSpillThreshold, context.outputParser, 1)
     val mapOutputFiles = FileFinder.find(context.mapOutDir, new PatternFilenameFilter(s".+Partition${id}\\.txt"))
@@ -34,13 +34,14 @@ case class ReduceJob[U](id:Int,context: MapReduceContext[_, U])(implicit fs:File
     val reducerInput = persistentFileMerger.merge()
     println("Merge["+id+"] finished")
     //Reduce
-    val writer = TextFileWriter(context.outputFile, context.outputParser)
+
     while(reducerInput.hasNext){
       val input = reducerInput.groupBy(_.get._1)(_.get._2)
       val result = Reducer.reduce(context.reduceFunction,input._1,input._2)
+      val writer = TextFileWriter(context.outputFile, context.outputParser)
       writer.write(result)
+      writer.close()
     }
-    writer.close()
     println("Reducer [" + id + "] finished")
   }
 }

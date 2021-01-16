@@ -31,23 +31,22 @@ object Main extends App {
   val outFile = new Path(args(2))
   val context: MapReduceContext[Int, Int] =
     MapReduceContext(
-      1,
       mapFunction,
-      4,
+      10000,
       0.8f,
       combineFunction,
       mapOutDir,
       copyDir,
-      10,
+      20000,
       0.8f,
-      1,
+      5,
       reduceFunction,
       inFile,
       outFile,
       inputParser,
       inputParser,
       outputParser,
-      50,
+      100,
       comparer)
   MapReduceBuilder.create(context, yarnContext).submit
 }

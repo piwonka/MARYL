@@ -6,7 +6,6 @@ import scala.reflect.runtime.universe._
 
 case class MapReduceContext[T, U]
 (
-  mapperCount: Int,
   mapFunction: (String, T) => List[(String, U)],
   spillBufferSize: Int,
   spillThreshold: Float,

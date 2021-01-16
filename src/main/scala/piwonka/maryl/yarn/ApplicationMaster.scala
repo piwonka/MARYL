@@ -55,6 +55,7 @@ case class ApplicationMaster(dmro:DistributedMapReduceOperation)(implicit fs:Fil
     val numToRequest: Int = count - previousAttempts.length
     val requests:Seq[ContainerRequest] = (0 until numToRequest).map(_ => new ContainerRequest(workerResources, null, null, Priority.newInstance(1)))//#todo:Magic
     requests.foreach(rmClient.addContainerRequest)
+    println("request "+numToRequest+" containers")
   }
 
   def setUpWorkerContainerLaunchContext(jobType:MRJobType):ContainerLaunchContext = {
