@@ -25,7 +25,6 @@ case class ReduceJob[U](id:Int,context: MapReduceContext[_, U])(implicit fs:File
     fs.mkdirs(copyDir)
     val spillingFileWriter = new SpillingFileWriter[U](copyDir, context.copyBufferSize, context.copyBufferSpillThreshold, context.outputParser, 1)
     val mapOutputFiles = FileFinder.find(context.mapOutDir, new PatternFilenameFilter(s".+Partition${id}\\.txt"))
-    mapOutputFiles.map(_.getName).foreach(println(_))
     val bulkIterator = new FileMergingIterator[(String, U)](context.reduceInputParser, context.pairComparer, mapOutputFiles)
     bulkIterator.map(_.get).foreach(spillingFileWriter.write(_)) //copy and spill to copyDir
     spillingFileWriter.flush()

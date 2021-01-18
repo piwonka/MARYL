@@ -45,9 +45,7 @@ case class SpillingFileWriter[U](spillDir: Path, spillBufferSize: Int, spillThre
     //Create Spill if Buffer over Threshhold
     if (spillBufferSize * spillThreshold <= buffer.elementCount()) {
       //If full and spill is not finished wait
-      while (spillState != null && !spillState.isCompleted) {
-        Await.ready(spillState, Duration.Inf)
-      }
+      waitUntilCurrentSpillFinished()
       //Spill
       val values = buffer.getValuesAndReset()
       spillState = Future {
@@ -66,13 +64,15 @@ case class SpillingFileWriter[U](spillDir: Path, spillBufferSize: Int, spillThre
     val writers = new Array[TextFileWriter[(String, U)]](partitionCnt)
     for (pair <- if (combiner == null) sortedElements else combine(sortedElements)) { //Foreach would be possible, but this is returning Unit and foreach isnt meant for state operations
       val partitionIndex = pair._1.hashCode % partitionCnt
-      if (writers(partitionIndex) == null)
-      {
-        writers(partitionIndex) = TextFileWriter[(String, U)](new Path(spillFileName + s"$partitionIndex.txt"), parser)
+      if (writers(partitionIndex) == null) {
+        {
+          writers(partitionIndex) = TextFileWriter[(String, U)](new Path(spillFileName + s"$partitionIndex.txt"), parser)
+        }
+        println(s"Writing $pair in Spill ${spillCnt - 1}")
       }
       writers(partitionIndex).write(pair)
     }
-    writers.filter(_!=null).foreach(_.close())
+    writers.filter(_ != null).foreach(_.close())
 
   }
 
@@ -83,5 +83,14 @@ case class SpillingFileWriter[U](spillDir: Path, spillBufferSize: Int, spillThre
   }
 
   //Needs to exist because in the end the buffer needs to force a spill to write out all values
-  def flush() = if (buffer.elementCount() > 0) spill(buffer.getValuesAndReset())
+  def flush() = {
+    waitUntilCurrentSpillFinished()
+    if (buffer.elementCount() > 0) spill(buffer.getValuesAndReset())
+  }
+
+  private def waitUntilCurrentSpillFinished(): Unit ={
+    while (spillState != null && !spillState.isCompleted) {
+      Await.ready(spillState, Duration.Inf)
+    }
+  }
 }

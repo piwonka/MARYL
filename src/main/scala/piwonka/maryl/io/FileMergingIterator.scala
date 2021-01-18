@@ -10,7 +10,7 @@ import org.apache.hadoop.fs.{FileContext, Path}
  * */
 
 case class FileMergingIterator[T](parser: String => T, comparer: (T, T) => T, files: Seq[Path])(implicit fc:FileContext) extends Iterator[Option[T]] with FileReader[T] {
-  override val input = {for (file <- files) yield new FileIterator[T](file, parser)}.filter(_.hasNext).toArray //create Readers, close if empty
+  val input = {for (file <- files) yield new FileIterator[T](file, parser)}.filter(_.hasNext).toArray //create Readers, close if empty
   val values = input.map(_.next()) //read values from non.empty readers
   var nextVal: Option[T] = Option.empty
 
@@ -24,13 +24,13 @@ case class FileMergingIterator[T](parser: String => T, comparer: (T, T) => T, fi
     nextVal
   }
 
-  override def hasNext: Boolean = nextVal.isDefined || values.map(_.isDefined).foldLeft(false)(_ || _) //foldleft because can't reduce empty List
+  def hasNext: Boolean = nextVal.isDefined || values.map(_.isDefined).foldLeft(false)(_ || _) //foldleft because can't reduce empty List
 
 
   /**
    * @return Returns an Option that contains the smallest readable value in files, if present, while advancing the pointer further
    * */
-  override def next(): Option[T] = {
+  def next(): Option[T] = {
     if (nextVal.isDefined) {
       val tmp = nextVal
       nextVal = Option.empty

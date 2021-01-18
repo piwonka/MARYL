@@ -7,12 +7,13 @@ import piwonka.maryl.io.{FileBlockIterator, FileIterator, SpillingFileWriter}
 import piwonka.maryl.yarn.YarnAppUtils.deserialize
 
 object MapJob extends App{
-  println("---MAPPER---")
+  val id = sys.env("id")
+  println(s"---MAPPER$id---")
   val yc = deserialize(new Path(sys.env("YarnContext"))).asInstanceOf[YarnContext]
   val mrc = deserialize(new Path(sys.env("MRContext"))).asInstanceOf[MapReduceContext[Any,Any]]
   implicit val fs = FileSystem.get(new YarnConfiguration())
   implicit val fc = FileContext.getFileContext(fs.getUri)
-  val job = MapJob(mrc,new FileBlockIterator[(String, Any)](mrc.inputFile,mrc.inputParser,Integer.parseInt(sys.env("id"))))
+  val job = MapJob(mrc,new FileBlockIterator[(String, Any)](mrc.inputFile,mrc.inputParser,Integer.parseInt(id)))
   job.run()
 }
 case class MapJob[T, U](context: MapReduceContext[T, U], fileIterator: FileBlockIterator[(String, T)])(implicit fs:FileSystem,fc:FileContext){
@@ -23,12 +24,13 @@ case class MapJob[T, U](context: MapReduceContext[T, U], fileIterator: FileBlock
     val spillingFileWriter = new SpillingFileWriter[U](spillDir, context.spillBufferSize, context.spillThreshold, context.outputParser, context.reducerCount, context.combineFunction)
 
     //Higher Order Functions instead of Recursion
-    fileIterator.flatMap( //Map and flatten results
+    fileIterator.filter(_.isDefined).flatMap( //Map and flatten results
       elem => {
         val (key, value) = elem.get
         Mapper.map(context.mapFunction, key, value)
       }).foreach(spillingFileWriter.write(_)) //write out results
     //Write out last Values
     spillingFileWriter.flush()
+    println("---MAPPER FINISHED---")
   }
 }

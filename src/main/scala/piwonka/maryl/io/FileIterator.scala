@@ -24,11 +24,11 @@ case class FileIterator[T](file:Path, parser:String=>T)(implicit fc:FileContext)
     nextVal
   }
 
-  override def hasNext: Boolean = if(peek().isDefined) true else{input.close();false}
+  def hasNext: Boolean = if(peek().isDefined) true else{input.close();false}
   /**
    * @return An Option[T] that contains the next value of the file if present and advances the pointer further
    * */
-  override def next():Option[T] = {
+  def next():Option[T] = {
     if(nextVal.isDefined){
       val tmp:Option[T] = nextVal
       nextVal = Option.empty

@@ -67,7 +67,7 @@ case class DistributedMapReduceOperation(yc: YarnContext, mrc: MapReduceContext[
 
   def start(): Unit = {
     println(s"Requesting $mapperCount mappers and ${mrc.reducerCount} reducers...")
-    val mapContainerRequests: Seq[ContainerRequest] = for (i <- 0 until mapperCount) yield new ContainerRequest(workerResources, inputBlockLocations(i).getHosts, null, Priority.newInstance(1))
+    val mapContainerRequests: Seq[ContainerRequest] = for (i <- 0 until mapperCount) yield new ContainerRequest(workerResources, inputBlockLocations(i).getHosts, null, Priority.newInstance(0))
     mapContainerRequests.foreach(requestContainer)
     val reduceContainerRequests: Seq[ContainerRequest] = (0 until mrc.reducerCount).map(_ => new ContainerRequest(workerResources, null, null, Priority.newInstance(1)))
     reduceContainerRequests.foreach(requestContainer)
@@ -101,13 +101,14 @@ case class DistributedMapReduceOperation(yc: YarnContext, mrc: MapReduceContext[
     }
     else if (finished == mapperCount + mrc.reducerCount) {
       finalizeResults()
-      deleteTempFiles()
+      //deleteTempFiles()
       unregisterApplication(FinalApplicationStatus.SUCCEEDED, "All Jobs completed.")
     }
   }
 
   private def finalizeResults(): Unit ={//REDUCERS CANT WRITE IN SAME OUTPUT FILE BECAUSE OF BLOCK REPLICATION AND FILE LEASES...
     val reducerResults = FileFinder.find(mrc.copyDir,new PatternFilenameFilter(".+_RESULT.txt"))
+    reducerResults.map(_.getName).foreach(println)
     val mergedResults = FileMergingIterator(mrc.reduceInputParser,mrc.pairComparer,reducerResults)
     val writer = TextFileWriter(mrc.outputFile,mrc.outputParser)
     mergedResults.map(_.get).foreach(writer.write)
@@ -120,13 +121,10 @@ case class DistributedMapReduceOperation(yc: YarnContext, mrc: MapReduceContext[
   }
 
   private def startAllocatedReducers():Unit = {
-    println("Starting AllocatedReducers")
+    //println("Starting AllocatedReducers")
     jobs.filter(_._2._1 == MRJobType.REDUCE).map(_._2._2).foreach(startReducer)
   }
 
-  override def handleContainerError(containerId: ContainerId, error: Throwable): Unit = println(s"ERROR: ${error.printStackTrace()}")
+  override def handleContainerError(containerId: ContainerId, error: Throwable): Unit = println(s"ERROR: ${error.getMessage}")
 
-  def restartContainer(containerId: ContainerId):Unit = ???
-
-  def findOptimalBlockLocationForContainer(container: Container): Int = ???
 }
