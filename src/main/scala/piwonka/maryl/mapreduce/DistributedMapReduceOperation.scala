@@ -6,7 +6,6 @@ import org.apache.hadoop.yarn.api.ApplicationConstants
 import org.apache.hadoop.yarn.api.records.{Container, ContainerId, ContainerLaunchContext, ContainerStatus, FinalApplicationStatus, LocalResource, Priority}
 import org.apache.hadoop.yarn.client.api.AMRMClient.ContainerRequest
 import org.apache.hadoop.yarn.conf.YarnConfiguration
-import org.slf4j.LoggerFactory
 import piwonka.maryl.api.{MapReduceContext, YarnContext}
 import piwonka.maryl.io.{FileFinder, FileMergingIterator, TextFileWriter}
 import piwonka.maryl.mapreduce.MRJobType.MRJobType
@@ -29,9 +28,7 @@ object DistributedMapReduceOperation {
 }
 
 case class DistributedMapReduceOperation(yc: YarnContext, mrc: MapReduceContext[Any, Any], mapperCount: Int, inputBlockLocations: Array[BlockLocation])(implicit fs: FileSystem, fc: FileContext) extends ApplicationMaster(yc){
-  private val logger = LoggerFactory.getLogger(classOf[DistributedMapReduceOperation])
   private val jobs: mutable.HashMap[ContainerId, (MRJobType, Container)] = mutable.HashMap()
-  private val workedBlocks: Array[Boolean] = new Array(inputBlockLocations.length)
   private var finished = 0
   private var mapperCnt=0
   private var reducerCnt=0
