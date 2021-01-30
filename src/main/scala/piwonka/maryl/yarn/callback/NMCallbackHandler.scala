@@ -6,8 +6,7 @@ import java.util
 import org.apache.hadoop.yarn.api.records.{ContainerId, ContainerStatus, Resource}
 import org.apache.hadoop.yarn.client.api.async.NMClientAsync
 import org.slf4j.LoggerFactory
-import piwonka.maryl.mapreduce.DistributedMapReduceOperation
-import piwonka.maryl.yarn.ApplicationMaster
+import piwonka.maryl.yarn.{ApplicationMaster, MARYLApplicationMaster}
 
 case class NMCallbackHandler(appMaster:ApplicationMaster) extends NMClientAsync.AbstractCallbackHandler{
   private val logger = LoggerFactory.getLogger(classOf[NMCallbackHandler])

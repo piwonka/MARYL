@@ -3,6 +3,12 @@ package piwonka.maryl.io
 import java.io.InputStreamReader
 import org.apache.hadoop.fs.{FileContext, Path}
 
+/** Iterates over a specific block of a hdfs file.
+ * Functionality is similar to FileIterator
+ * @param file   The file that is being iterated over
+ * @param parser A function that transforms input data to the desired format
+ * @param blockId the id of the block that is being read
+ **/
 case class FileBlockIterator[T](file: Path, parser: String => T, blockId: Int)(implicit fc: FileContext) extends FileReader[T] {
   val blockLocations = fc.getFileBlockLocations(file, 0, fc.getFileStatus(file).getLen)
   var current = blockLocations(blockId).getOffset

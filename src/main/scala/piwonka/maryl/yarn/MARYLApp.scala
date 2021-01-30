@@ -8,7 +8,7 @@ import org.apache.hadoop.yarn.client.api.{YarnClient, YarnClientApplication}
 import org.apache.hadoop.yarn.conf.YarnConfiguration
 import org.slf4j.LoggerFactory
 import piwonka.maryl.api.{MapReduceContext, YarnContext}
-import piwonka.maryl.io.RemoteIteratorWrapper
+import piwonka.maryl.io.{FileIterator, RemoteIteratorWrapper}
 import piwonka.maryl.yarn.YarnAppUtils._
 
 import scala.Console.println
@@ -17,20 +17,20 @@ import scala.concurrent.Future
 import scala.jdk.CollectionConverters.MapHasAsJava
 
 
-case class MARYLYarnClient(yarnContext: YarnContext,mapReduceContext:MapReduceContext[_,_]) {
-  private val logger = LoggerFactory.getLogger(classOf[MARYLYarnClient])
-  implicit val conf:YarnConfiguration = new YarnConfiguration()
-  implicit val fs:FileSystem = FileSystem.get(conf)
-  implicit val fc:FileContext = FileContext.getFileContext(fs.getUri)
-  implicit val yc:YarnClient = YarnClient.createYarnClient()
-  val context:ContainerLaunchContext = createAMContainerLaunchContext
+case class MARYLApp[T,U](yarnContext: YarnContext, mapReduceContext:MapReduceContext[T,U]) {
+  private val logger = LoggerFactory.getLogger(classOf[MARYLApp[T,U]])
+  private implicit val conf:YarnConfiguration = new YarnConfiguration()
+  private implicit val fs:FileSystem = FileSystem.get(conf)
+  private implicit val fc:FileContext = FileContext.getFileContext(fs.getUri)
+  private implicit val yc:YarnClient = YarnClient.createYarnClient()
+  private val context:ContainerLaunchContext = createAMContainerLaunchContext
 
   private def createAMContainerLaunchContext:ContainerLaunchContext={
     //----------COMMAND---------
     val commands:List[String] = List(
       "$JAVA_HOME/bin/java " +
         s" -Xmx${yarnContext.amMemory}m " +
-        s" piwonka.maryl.mapreduce.DistributedMapReduceOperation " +
+        s" piwonka.maryl.yarn.MARYLApplicationMaster " +
         " 1> " + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout" +
         " 2> " + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stderr"
     )
@@ -50,7 +50,7 @@ case class MARYLYarnClient(yarnContext: YarnContext,mapReduceContext:MapReduceCo
     amContainer
   }
 
-  def submit:Future[Path]= {
+  def submit():Future[FileIterator[(String,U)]]= {
     //upload the Jar and add to AM-ContainerLaunchContext
     val localResources:Map[String,LocalResource] =
       Map("MarylApp.jar" -> uploadFile(yarnContext.localJarPath,Path.mergePaths(yarnContext.tempPath,new Path("/MarylApp.jar"))))
@@ -90,7 +90,7 @@ case class MARYLYarnClient(yarnContext: YarnContext,mapReduceContext:MapReduceCo
       }
       println(appReport.getName +"["+appId + "] finished with state " + appState + " in " + (appReport.getFinishTime-appReport.getStartTime)+"ms")
       //cleanup
-      if(appState==YarnApplicationState.FINISHED) mapReduceContext.outputFile else null
+      if(appState==YarnApplicationState.FINISHED) FileIterator(mapReduceContext.outputFile,mapReduceContext.reduceInputParser) else null
     }
   }
 

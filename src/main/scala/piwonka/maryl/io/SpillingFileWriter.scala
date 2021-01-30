@@ -7,8 +7,15 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 import scala.reflect.ClassTag
-
-case class SpillingFileWriter[U](spillDir: Path, spillBufferSize: Int, spillThreshold: Float, parser: ((String, U)) => String, partitionCnt: Int, combiner: (U, U) => U = null)(implicit fc: FileContext) {
+/**A FileWriter that buffers data and asynchronously partitions and spills it to the HDFS
+ * @param spillDir The Directory where the generated spillfiles are written to
+ * @param parser A function that transforms output data to the desired output format
+ * @param spillBufferSize The size of the buffer
+ * @param spillThreshold The threshold that needs to be reached to start a spill
+ * @param partitionCnt The number of partitions created for each spill
+ * @param combineFunction The function that is fed to the combiner, which is called before every spill
+ **/
+case class SpillingFileWriter[U](spillDir: Path, spillBufferSize: Int, spillThreshold: Float, parser: ((String, U)) => String, partitionCnt: Int, combineFunction: (U, U) => U = null)(implicit fc: FileContext) {
 
   case class CircularBuffer[T](bufferSize: Int)(implicit tag: ClassTag[T]) {
     val buffer = new Array[T](bufferSize)
@@ -32,15 +39,21 @@ case class SpillingFileWriter[U](spillDir: Path, spillBufferSize: Int, spillThre
       result.toList
     }
   }
-
-  var spillCnt = 0 //Just for unique filenames
   val buffer = new CircularBuffer[(String, U)](spillBufferSize)
-  var spillState: Future[Unit] = null //Empty future for completed state in while(bandaid fix)
+  var spillState: Future[Unit] = null /* Deliberate decision to keep the Future of the current spill as state, to circumvent race-conditions when reading from the buffer. ->leads to only one spill happening at once*/
+  var spillCnt = 0 //Just  needed for unique filenames
 
+  /***
+   * Writes a pair to buffer
+   */
   def write(pair: (String, U)): Unit = {
     write(pair._1, pair._2)
   }
 
+  /***
+   * Writes a pair to the buffer, checking first if the buffer reached the spillthreshold.
+   * Initiates asynchronous spill if threshold is reached, before writing the pair to the buffer.
+   */
   def write(key: String, value: U): Unit = {
     //Create Spill if Buffer over Threshhold
     if (spillBufferSize * spillThreshold <= buffer.elementCount()) {
@@ -48,7 +61,7 @@ case class SpillingFileWriter[U](spillDir: Path, spillBufferSize: Int, spillThre
       waitUntilCurrentSpillFinished()
       //Spill
       val values = buffer.getValuesAndReset()
-      spillState = Future {
+      spillState = Future { //initiate asynchronous spill
         spill(values)
       }
     }
@@ -56,41 +69,44 @@ case class SpillingFileWriter[U](spillDir: Path, spillBufferSize: Int, spillThre
     buffer.add((key, value))
   }
 
+
+  /***
+   *Sort, partition and combine buffered elements before writing them into spill files.
+   * Every partition corresponds to their own spillfile
+   */
   private def spill(elements: List[(String, U)]) = {
     val spillFileName = Path.mergePaths(spillDir, new Path(s"/Spill${spillCnt}_Id${Thread.currentThread().getId}_Partition")).toString
     spillCnt += 1
     val sortedElements = elements.sortBy(_._1)
     //Partition and write out pairs
     val writers = new Array[TextFileWriter[(String, U)]](partitionCnt)
-    for (pair <- if (combiner == null) sortedElements else combine(sortedElements)) { //Foreach would be possible, but this is returning Unit and foreach isnt meant for state operations
-      val partitionIndex = pair._1.hashCode % partitionCnt
-      if (writers(partitionIndex) == null) {
-        {
-          writers(partitionIndex) = TextFileWriter[(String, U)](new Path(spillFileName + s"$partitionIndex.txt"), parser)
-        }
-        println(s"Writing $pair in Spill ${spillCnt - 1}")
-      }
+    for (pair <- if (combineFunction == null) sortedElements else combine(sortedElements)) { //if a combiner is specified run it on the sorted buffer elements
+      val partitionIndex = (pair._1.hashCode & Integer.MAX_VALUE) % partitionCnt
+      writers(partitionIndex) = if (writers(partitionIndex) == null) TextFileWriter[(String, U)](new Path(spillFileName + s"$partitionIndex.txt"), parser) else writers(partitionIndex)//create writer if that specific partition wasnt written to before
       writers(partitionIndex).write(pair)
     }
-    writers.filter(_ != null).foreach(_.close())
-
+    writers.filter(_ != null).foreach(_.close())//close all opened writers.
   }
 
-  //Sort every instance of pair(_) by key (._1), group them by key in a map, isolate values and run combiner on them
+  /***
+   *Groups pairs by key in a map, isolates values and runs the combiner on them, then returns list of (Key,CombinedValue)
+   */
   private def combine(elements: List[(String, U)]): List[(String, U)] = {
-    val groupedElements = elements.groupBy(_._1).transform((_, pairs) => pairs.map(_._2)) //group data by key
-    groupedElements.map(e => Combiner.combine(combiner, e._1, e._2)).toList
+    val groupedElements:Map[String,List[U]] = elements.groupBy(_._1).transform((_, pairs) => pairs.map(_._2)) //group data by key
+    groupedElements.map(e => Combiner.combine(combineFunction, e._1, e._2)).toList
   }
 
-  //Needs to exist because in the end the buffer needs to force a spill to write out all values
-  def flush() = {
+  /***
+   *initiates a spill of all values in the buffer, regardless of the reached threshold
+   */
+  def flush() = {//Needs to exist because in the end the buffer needs to force a spill to write out remaining values without reaching the threshold
     waitUntilCurrentSpillFinished()
     if (buffer.elementCount() > 0) spill(buffer.getValuesAndReset())
   }
 
   private def waitUntilCurrentSpillFinished(): Unit ={
     while (spillState != null && !spillState.isCompleted) {
-      Await.ready(spillState, Duration.Inf)
+      Await.ready(spillState, Duration.Inf) /*Blocking wait// Duration should not be Infinite, but its hard to predict the speed of the used Cluster. As long as hdfs is properly functioning this should be a non-issue*/
     }
   }
 }

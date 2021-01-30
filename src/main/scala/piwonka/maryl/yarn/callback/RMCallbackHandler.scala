@@ -5,8 +5,7 @@ import java.util
 import org.apache.hadoop.yarn.api.records.{Container, ContainerStatus, NodeReport, UpdatedContainer}
 import org.apache.hadoop.yarn.client.api.async.AMRMClientAsync
 import org.slf4j.LoggerFactory
-import piwonka.maryl.mapreduce.DistributedMapReduceOperation
-import piwonka.maryl.yarn.ApplicationMaster
+import piwonka.maryl.yarn.{ApplicationMaster, MARYLApplicationMaster}
 
 import scala.jdk.CollectionConverters.ListHasAsScala
 

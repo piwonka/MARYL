@@ -9,7 +9,6 @@ import piwonka.maryl.yarn.YarnAppUtils.deserialize
 
 object ReduceJob extends App{
   println("---REDUCER---")
-  val yc = deserialize(new Path(sys.env("YarnContext"))).asInstanceOf[YarnContext]
   val mrc = deserialize(new Path(sys.env("MRContext"))).asInstanceOf[MapReduceContext[Any,Any]]
   implicit val fs = FileSystem.get(new YarnConfiguration())
   implicit val fc = FileContext.getFileContext(fs.getUri)
@@ -21,16 +20,16 @@ case class ReduceJob[U](id:Int,context: MapReduceContext[_, U])(implicit fs:File
   def run(): Unit = {
     println("Copy ["+id+"]")
     //Copy
-    val copyDir = Path.mergePaths(context.copyDir,new Path(s"/Reducer$id"))
+    val copyDir = Path.mergePaths(context.copyTargetDir,new Path(s"/Reducer$id"))
     fs.mkdirs(copyDir)
     val spillingFileWriter = new SpillingFileWriter[U](copyDir, context.copyBufferSize, context.copyBufferSpillThreshold, context.outputParser, 1)
     val mapOutputFiles = FileFinder.find(context.mapOutDir, new PatternFilenameFilter(s".+Partition${id}\\.txt"))
-    val bulkIterator = new FileMergingIterator[(String, U)](context.reduceInputParser, context.pairComparer, mapOutputFiles)
+    val bulkIterator = new FileMergingIterator[(String, U)](context.reduceInputParser, context.comparer, mapOutputFiles)
     bulkIterator.map(_.get).foreach(spillingFileWriter.write(_)) //copy and spill to copyDir
     spillingFileWriter.flush()
     //Merge
     System.out.println("Merge ["+id+"]")
-    val persistentFileMerger = PersistentFileMerger(id, context.fileCntPerMerge, copyDir, context.outputParser, context.reduceInputParser, context.pairComparer)
+    val persistentFileMerger = PersistentFileMerger(id, context.mergeFactor, copyDir, context.outputParser, context.reduceInputParser, context.comparer)
     val reducerInput = persistentFileMerger.merge()
     println("Merge["+id+"] finished")
 

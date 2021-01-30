@@ -1,20 +1,19 @@
-package piwonka.maryl.mapreduce
+package piwonka.maryl.yarn
 
 import com.google.common.io.PatternFilenameFilter
 import org.apache.hadoop.fs.{BlockLocation, FileContext, FileSystem, Path}
 import org.apache.hadoop.yarn.api.ApplicationConstants
-import org.apache.hadoop.yarn.api.records.{Container, ContainerId, ContainerLaunchContext, ContainerStatus, FinalApplicationStatus, LocalResource, Priority}
+import org.apache.hadoop.yarn.api.records._
 import org.apache.hadoop.yarn.client.api.AMRMClient.ContainerRequest
 import org.apache.hadoop.yarn.conf.YarnConfiguration
 import piwonka.maryl.api.{MapReduceContext, YarnContext}
 import piwonka.maryl.io.{FileFinder, FileMergingIterator, TextFileWriter}
-import piwonka.maryl.mapreduce.MRJobType.MRJobType
-import piwonka.maryl.yarn.{ApplicationMaster, Worker}
+import piwonka.maryl.yarn.MRJobType.MRJobType
 import piwonka.maryl.yarn.YarnAppUtils.{buildEnvironment, createContainerContext, deserialize, setUpLocalResourceFromPath}
 
 import scala.collection.mutable
 
-object DistributedMapReduceOperation {
+object MARYLApplicationMaster {
   def main(args: Array[String]): Unit = {
     implicit val fs: FileSystem = FileSystem.get(new YarnConfiguration())
     implicit val fc: FileContext = FileContext.getFileContext(fs.getUri)
@@ -23,11 +22,11 @@ object DistributedMapReduceOperation {
     val status = fs.getFileStatus(mrc.inputFile)
     val blockLocations = fs.getFileBlockLocations(mrc.inputFile, 0, status.getLen)
     println("Blöcke:", blockLocations.length)
-    DistributedMapReduceOperation(yc, mrc, blockLocations.length, blockLocations).start()
+    MARYLApplicationMaster(yc, mrc, blockLocations.length, blockLocations).start()
   }
 }
 
-case class DistributedMapReduceOperation(yc: YarnContext, mrc: MapReduceContext[Any, Any], mapperCount: Int, inputBlockLocations: Array[BlockLocation])(implicit fs: FileSystem, fc: FileContext) extends ApplicationMaster(yc) {
+case class MARYLApplicationMaster(yc: YarnContext, mrc: MapReduceContext[Any, Any], mapperCount: Int, inputBlockLocations: Array[BlockLocation])(implicit fs: FileSystem, fc: FileContext) extends ApplicationMaster(yc) {
   private val jobs: mutable.HashMap[ContainerId, Worker] = mutable.HashMap()
   private var toRepeat: mutable.Queue[(ContainerLaunchContext,Worker)] = mutable.Queue()
   private var finished = 0
@@ -114,9 +113,9 @@ case class DistributedMapReduceOperation(yc: YarnContext, mrc: MapReduceContext[
   }
 
   private def finalizeResults(): Unit = { //REDUCERS CANT WRITE IN SAME OUTPUT FILE BECAUSE OF BLOCK REPLICATION AND FILE LEASES...
-    val reducerResults = FileFinder.find(mrc.copyDir, new PatternFilenameFilter(".+_RESULT.txt"))
+    val reducerResults = FileFinder.find(mrc.copyTargetDir, new PatternFilenameFilter(".+_RESULT.txt"))
     reducerResults.map(_.getName).foreach(println)
-    val mergedResults = FileMergingIterator(mrc.reduceInputParser, mrc.pairComparer, reducerResults)
+    val mergedResults = FileMergingIterator(mrc.reduceInputParser, mrc.comparer, reducerResults)
     val writer = TextFileWriter(mrc.outputFile, mrc.outputParser)
     mergedResults.map(_.get).foreach(writer.write)
     writer.close()
@@ -131,7 +130,6 @@ case class DistributedMapReduceOperation(yc: YarnContext, mrc: MapReduceContext[
   }
 
   private def startAllocatedReducers(): Unit = {
-    //println("Starting AllocatedReducers")
     jobs.filter(_._2.jobType == MRJobType.REDUCE).map(_._2.container).foreach(startReducer)
   }
 

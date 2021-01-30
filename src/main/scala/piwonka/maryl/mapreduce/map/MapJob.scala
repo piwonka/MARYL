@@ -9,11 +9,10 @@ import piwonka.maryl.yarn.YarnAppUtils.deserialize
 object MapJob extends App{
   val id = sys.env("id")
   println(s"---MAPPER$id---")
-  val yc = deserialize(new Path(sys.env("YarnContext"))).asInstanceOf[YarnContext]
   val mrc = deserialize(new Path(sys.env("MRContext"))).asInstanceOf[MapReduceContext[Any,Any]]
   implicit val fs = FileSystem.get(new YarnConfiguration())
   implicit val fc = FileContext.getFileContext(fs.getUri)
-  val job = MapJob(mrc,new FileBlockIterator[(String, Any)](mrc.inputFile,mrc.inputParser,Integer.parseInt(id)))
+  val job = MapJob(mrc,new FileBlockIterator[(String, Any)](mrc.inputFile,mrc.mapInputParser,Integer.parseInt(id)))
   job.run()
 }
 case class MapJob[T, U](context: MapReduceContext[T, U], fileIterator: FileBlockIterator[(String, T)])(implicit fs:FileSystem,fc:FileContext){

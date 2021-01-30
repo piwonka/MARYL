@@ -25,6 +25,7 @@ case class FileIterator[T](file:Path, parser:String=>T)(implicit fc:FileContext)
   }
 
   def hasNext: Boolean = if(peek().isDefined) true else{input.close();false}
+
   /**
    * @return An Option[T] that contains the next value of the file if present and advances the pointer further
    * */
@@ -40,7 +41,6 @@ case class FileIterator[T](file:Path, parser:String=>T)(implicit fc:FileContext)
       else Option.empty
     }
     catch{
-      case e:IOException=>Option.empty//Catches IOException: Stream closed() #todo:Split up stream for multiple reads on Mappers
       case e:Exception=>e.printStackTrace();Option.empty//Catches everything that is not text-data
     }
   }

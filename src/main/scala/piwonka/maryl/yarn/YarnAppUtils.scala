@@ -38,28 +38,15 @@ object YarnAppUtils {
     Apps.addToEnvironment(environment, Environment.CLASSPATH.name(), Environment.PWD.$() + File.pathSeparator + "*", File.pathSeparator) //Add Home to ClassPath
     addlEnv.foreach { case (key, value) =>
       Apps.addToEnvironment(environment, key, value, File.pathSeparator)
-    } //Add JarPath to Env
+    }
     environment.asScala.toMap
   }
 
   def createContainerContext(commands: List[String], resources: Map[String, LocalResource], environment: Map[String, String]): ContainerLaunchContext = {
-    val jCommands = try {
-      commands.asJava
-    } catch {
-      case _: Exception => null
-    } //#todo: check if works with Some(e).getOrElse(null)
-    val jResources = try {
-      resources.asJava
-    } catch {
-      case _: Exception => null
-    }
-    val jEnvironment = try {
-      environment.asJava
-    } catch {
-      case _: Exception => null
-    }
-    val context: ContainerLaunchContext = ContainerLaunchContext.newInstance(jResources, jEnvironment, jCommands, null, allTokens, null)
-    context
+    val jCommands = if(commands==null) null else commands.asJava
+    val jResources = if(resources==null) null else resources.asJava
+    val jEnvironment = if(environment==null) null else environment.asJava
+    ContainerLaunchContext.newInstance(jResources, jEnvironment, jCommands, null, allTokens, null)
   }
 
   private def allTokens: ByteBuffer = {
@@ -71,27 +58,21 @@ object YarnAppUtils {
   }
 
   def serialize(obj: Serializable, fileName: String)(implicit yc: YarnContext, fc: FileContext): Unit = {
-    println("Serialize")
     val location: Path = fc.makeQualified(Path.mergePaths(yc.tempPath, new Path(s"/$fileName.obj")))
     val test = Using(fc.create(location, util.EnumSet.of(CreateFlag.CREATE, CreateFlag.OVERWRITE))){ writer =>
       SerializationUtils.serialize(obj, writer)
-      //writer.hsync()
     }
     if (test.isFailure) {
       test.failed.get.printStackTrace()
-      System.exit(444)
     }
-    println(s"Wrote $location")
   }
 
   def deserialize(location: Path): Any = {
-    println("Deserialize")
     val test = Using(FileContext.getFileContext.open(location)) { reader =>
       SerializationUtils.deserialize[Any](reader)
     }
     if (test.isFailure) {
       test.failed.get.printStackTrace()
-      System.exit(444)
     }
     test.get
   }
