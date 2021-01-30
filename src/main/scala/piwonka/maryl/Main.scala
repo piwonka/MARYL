@@ -1,18 +1,17 @@
 package piwonka.maryl
 
-import org.apache.hadoop.fs.{FileContext, Path}
+import org.apache.hadoop.fs.Path
 import piwonka.maryl.api.{MapReduceBuilder, MapReduceContext, YarnContext}
 import piwonka.maryl.io.FileIterator
 import piwonka.maryl.yarn.MARYLApp
 
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.Duration
-import scala.tools.nsc.io.File
 
 object Main extends App {
-  def testStrings:Unit = {
+  def testStrings():Unit = {
     //Setup
-    val mapFunction = (key: String, value: String) => {
+    val mapFunction = (_:String, value: String) => {
       value.split(" ").groupBy(word => word).map(e => (e._1, e._2.length)).toList
     }
     val reduceFunction = (x: Int, y: Int) => x + y
@@ -60,11 +59,11 @@ object Main extends App {
         outputParser,
         100,
         comparer)
-    val path:Future[FileIterator[(Any, Any)]] = MapReduceBuilder.create(context, yarnContext).submit
-    Await.result(path, Duration.Inf).filter(_.isDefined).map(_.get).map(_.asInstanceOf[(String,Int)]).toList.sortBy(_._2).take(10).foreach(println)
+    val path:Future[FileIterator[(String,Int)]] = MapReduceBuilder.create(context, yarnContext).submit()
+    Await.result(path, Duration.Inf).filter(_.isDefined).map(_.get).toList.sortBy(_._2).take(10).foreach(println)
   }
 
-  def testNumbers:Unit = { //Setup
+  def testNumbers():Unit = { //Setup
     val mapFunction = (key: String, x: Int) => List((key, x + 1))
     val reduceFunction = (x: Int, y: Int) => x + y
     val combineFunction = reduceFunction
@@ -99,7 +98,7 @@ object Main extends App {
   def anschaulich = {
     //Spezifizierung der notwendigen Funktionen
     val mapFun = (key: String, value: String) => {
-      value.split(" ").map((_, 1)).toList
+      value.split(" ").map(_.trim).map(_.toLowerCase()).map((_, 1)).toList
     }
     val redFun   = (x: Int, y: Int) =>x + y
     val inParser =(line: String)=>("",line)
@@ -111,8 +110,8 @@ object Main extends App {
       val split = line.split(" ")
       (split(0), Integer.parseInt(split(1).trim))
     }
-    val inFile = new Path("in/rotk.txt")
-    val outFile = new Path("out/rotk.txt")
+    val inFile = new Path(args(1))
+    val outFile = new Path(args(2))
     //Erzeugen der Kontext-Objekte
     implicit val yc: YarnContext = YarnContext(new Path(args(0)), "WordCount")
     val mrc = new MapReduceContext(mapFun, redFun, inFile, outFile, inParser,
@@ -120,7 +119,7 @@ object Main extends App {
     //Erzeugen und starten der MARYL-Applikation
     val app: MARYLApp[String,Int] = MapReduceBuilder.create(mrc,yc)
     val appResult: Future[FileIterator[(String,Int)]] = app.submit()
-    Await.result(appResult, Duration.Undefined)
+    Await.result(appResult, Duration.Inf).filter(_.isDefined).map(_.get).toList.sortBy(_._2).takeRight(10).foreach(println)
   }
-  testStrings
+  anschaulich
 }

@@ -41,8 +41,8 @@ case class MapReduceContext[T, U]
   reduceInputParser: String => (String, U),
   outputParser: ((String, U)) => String,
   mergeFactor: Int,
-  comparer: ((String, U), (String, U)) => (String, U))(implicit tag: TypeTag[T], tag2: TypeTag[U]) extends Serializable {
-
+  comparer: ((String, U), (String, U)) => (String, U)) extends Serializable {
+//(implicit tag: TypeTag[T], tag2: TypeTag[U])
   def this(map: (String, T) => List[(String, U)], reduce: (U, U) => U,inputFile:Path,outputFile:Path,
             mapInputParser: String => (String, T),reduceInputParser: String => (String, U),
             outputParser: ((String, U)) => String,comparer: ((String, U), (String, U)) => (String, U)) (implicit yc:YarnContext){

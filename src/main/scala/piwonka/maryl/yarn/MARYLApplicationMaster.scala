@@ -37,10 +37,10 @@ case class MARYLApplicationMaster(yc: YarnContext, mrc: MapReduceContext[Any, An
     //SetUp Worker
     val jobId = {
       if (jobType == MRJobType.MAP) {
-        mapperCnt += 1;
+        mapperCnt += 1
         mapperCnt - 1
       } else {
-        reducerCnt += 1;
+        reducerCnt += 1
         reducerCnt - 1
       }
     }
@@ -71,7 +71,7 @@ case class MARYLApplicationMaster(yc: YarnContext, mrc: MapReduceContext[Any, An
 
   override def handleContainerAllocation(newContainer: Container): Unit = {
     val id = newContainer.getId
-    if(!toRepeat.isEmpty){
+    if(toRepeat.nonEmpty){
       val worker=toRepeat.dequeue()
       worker.container=newContainer
       jobs.put(id,worker)
@@ -148,12 +148,12 @@ case class MARYLApplicationMaster(yc: YarnContext, mrc: MapReduceContext[Any, An
       //Request new container
       requestContainer(new ContainerRequest(workerResources, workerNodes, null, Priority.newInstance(0)))
     }
-    else unregisterApplication(FinalApplicationStatus.FAILED,s"${failedWorker.jobType.split(".").last} with id ${jobId} took more than 3 attempts to complete")
+    else unregisterApplication(FinalApplicationStatus.FAILED,s"${failedWorker.jobType.split(".").last} with id $jobId took more than 3 attempts to complete")
   }
 
   private def cleanUpFailedWorkerAttempt(worker: Worker): Unit = {
     val id = worker.context.getEnvironment.get("id")
-    val workerDir = if (worker.jobType == MRJobType.MAP) s"/Mapper${id}" else s"/Reducer${id}"
+    val workerDir = if (worker.jobType == MRJobType.MAP) s"/Mapper$id" else s"/Reducer$id"
     fs.delete(Path.mergePaths(mrc.mapOutDir, new Path(workerDir)), true)
   }
 
