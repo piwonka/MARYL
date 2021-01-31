@@ -8,12 +8,10 @@ import org.apache.hadoop.fs.{FileContext, Path}
  * @param comparer The function that is used to compare parsed file data to determine the smallest value
  * @param files The Files to be read
  * */
-
 case class FileMergingIterator[T](parser: String => T, comparer: (T, T) => T, files: Seq[Path])(implicit fc:FileContext) extends Iterator[Option[T]] with FileReader[T] {
   val input = {for (file <- files) yield new FileIterator[T](file, parser)}.filter(_.hasNext).toArray //create Readers, close if empty
   val values = input.map(_.next()) //read values from non.empty readers
   var nextVal: Option[T] = Option.empty
-
   /**
    * @return Returns an Option that contains the smallest readable value in files, if present, while NOT advancing the pointer any further
    * */
@@ -23,10 +21,7 @@ case class FileMergingIterator[T](parser: String => T, comparer: (T, T) => T, fi
     }
     nextVal
   }
-
   def hasNext: Boolean = nextVal.isDefined || values.map(_.isDefined).foldLeft(false)(_ || _) //foldleft because can't reduce empty List
-
-
   /**
    * @return Returns an Option that contains the smallest readable value in files, if present, while advancing the pointer further
    * */
@@ -41,10 +36,10 @@ case class FileMergingIterator[T](parser: String => T, comparer: (T, T) => T, fi
     values(index) = if (input(index).hasNext) input(index).next() else Option.empty
     smallestElement
   }
-
   /**
    * Reads KV-Pair data from files until the key changes, advancing the pointer until the new key would be next
    * @return Returns a pair of (key:K,values:List[V]), where values contains all values of the same key in files (assuming files were presorted)
+   * @note this method is exclusively used to generate reducer-inputs
    * */
   def groupBy[K, V](f: Option[T] => K)(g: Option[T] => V): (K, List[V]) = {
     val key = f.apply(peek())

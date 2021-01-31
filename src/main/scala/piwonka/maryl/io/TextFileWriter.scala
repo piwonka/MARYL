@@ -3,10 +3,7 @@ package piwonka.maryl.io
 import java.io.{BufferedWriter, OutputStreamWriter}
 import java.util
 
-import org.apache.hadoop.fs.permission.FsAction
-import org.apache.hadoop.fs.{CreateFlag, FileContext, FileSystem, Path}
-import org.apache.hadoop.hdfs.DistributedFileSystem
-import org.apache.hadoop.yarn.conf.YarnConfiguration
+import org.apache.hadoop.fs.{CreateFlag, FileContext, Path}
 
 /** Wraps a BufferedWriter and parses data into output format
  * Creates file if file does not exist, otherwise appends

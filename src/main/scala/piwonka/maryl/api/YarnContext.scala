@@ -1,9 +1,6 @@
 package piwonka.maryl.api
 
-import org.apache.hadoop.fs.{FileContext, FileSystem, Path}
-import org.apache.hadoop.yarn.conf.YarnConfiguration
-
-import scala.tools.nsc.io.File
+import org.apache.hadoop.fs.Path
 /**
  * @param localJarPath The path of the programs jarfile in the local filesystem
  * @param appName The application name

@@ -1,6 +1,7 @@
 package piwonka.maryl.io
 
 import java.io.InputStreamReader
+
 import org.apache.hadoop.fs.{FileContext, Path}
 
 /** Iterates over a specific block of a hdfs file.

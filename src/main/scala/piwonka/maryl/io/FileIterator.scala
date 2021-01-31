@@ -1,6 +1,6 @@
 package piwonka.maryl.io
 
-import java.io.{BufferedReader, IOException, InputStreamReader}
+import java.io.{BufferedReader, InputStreamReader}
 
 import org.apache.hadoop.fs.{FileContext, Path}
 

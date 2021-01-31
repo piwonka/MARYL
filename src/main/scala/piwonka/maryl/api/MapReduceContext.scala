@@ -2,9 +2,9 @@ package piwonka.maryl.api
 
 import org.apache.hadoop.fs.Path
 
-import scala.reflect.runtime.universe._
-
 /**
+ * Wraps all possible parameters of the MapReduce-Job
+ *
  * @param mapFunction              The function fed to the Mapper to transform data
  * @param spillBufferSize          The size of the spill buffer
  * @param spillThreshold           The percentage (0.00-1.00), the spill buffer needs to be filled before a spill is triggered
@@ -42,32 +42,20 @@ case class MapReduceContext[T, U]
   outputParser: ((String, U)) => String,
   mergeFactor: Int,
   comparer: ((String, U), (String, U)) => (String, U)) extends Serializable {
-//(implicit tag: TypeTag[T], tag2: TypeTag[U])
-  def this(map: (String, T) => List[(String, U)], reduce: (U, U) => U,inputFile:Path,outputFile:Path,
-            mapInputParser: String => (String, T),reduceInputParser: String => (String, U),
-            outputParser: ((String, U)) => String,comparer: ((String, U), (String, U)) => (String, U)) (implicit yc:YarnContext){
-    this(
-      map,
-      100,
-      0.8f,
-      null,
-      Path.mergePaths(yc.tempPath, new Path("/MapResults")),
-      Path.mergePaths(yc.tempPath, new Path("/CopyAndMerge")),
-      100,
-      0.8f,
-      1,
-      reduce,
-      inputFile,
-      outputFile,
-      mapInputParser,
-      reduceInputParser,
-      outputParser,
-      100,
-      comparer)
-  }
-  def apply(map: (String, T) => List[(String, U)], reduce: (U, U) => U,inputFile:Path,outputFile:Path,
-            mapInputParser: String => (String, T),reduceInputParser: String => (String, U),
-            outputParser: ((String, U)) => String,comparer: ((String, U), (String, U)) => (String, U)) (implicit yc:YarnContext):MapReduceContext[T,U] = {
-            this(map,reduce,inputFile,outputFile,mapInputParser,reduceInputParser,outputParser,comparer)
+
+  /**
+   * Allows for shorthand creation of small MapReduce-Jobs.
+   * Presets:
+   * Buffersize = 100
+   * SpillThresholds = 0.8
+   * ReducerCount=1
+   * MergeFactor = 100
+   * @note Note that YarnContext has to be created BEFORE the MapReduceContext for this to work (uses implicit YarnContext to create directories)
+   */
+  def this(map: (String, T) => List[(String, U)], reduce: (U, U) => U, inputFile: Path, outputFile: Path,
+           mapInputParser: String => (String, T), reduceInputParser: String => (String, U),
+           outputParser: ((String, U)) => String, comparer: ((String, U), (String, U)) => (String, U))(implicit yc: YarnContext) = {
+    this(map, 100, 0.8f, null, Path.mergePaths(yc.tempPath, new Path("/MapResults")), Path.mergePaths(yc.tempPath, new Path("/CopyAndMerge")),
+      100, 0.8f, 1, reduce, inputFile, outputFile, mapInputParser, reduceInputParser, outputParser, 100, comparer)
   }
 }

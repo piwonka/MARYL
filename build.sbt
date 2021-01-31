@@ -18,9 +18,9 @@ libraryDependencies ++= Seq(
 //Compile/Build Options
 scalacOptions += "-target:jvm-1.8"
 javacOptions in(Compile, compile) ++= Seq("-source", "1.8", "-target", "1.8", "-g:lines")
-mainClass in(Compile, run) := Some("piwonka.maryl.Main") //specifying fully qualified path of main class
-mainClass in(Compile, packageBin):=Some("piwonka.maryl.Main")
-mainClass in assembly:=Some("piwonka.maryl.Main")// assembly=fatjar
+mainClass in(Compile, run) := Some("main.Main") //specifying fully qualified path of main class
+mainClass in(Compile, packageBin):=Some("main.Main")
+mainClass in assembly:=Some("main.Main")// assembly=fatjar
 assemblyJarName in assembly:="MARYL.jar"
 crossPaths := false
 autoScalaLibrary := false
