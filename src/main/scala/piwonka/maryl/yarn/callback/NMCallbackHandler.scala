@@ -6,9 +6,13 @@ import java.util
 import org.apache.hadoop.yarn.api.records.{ContainerId, ContainerStatus, Resource}
 import org.apache.hadoop.yarn.client.api.async.NMClientAsync
 import org.slf4j.LoggerFactory
-import piwonka.maryl.mapreduce.DistributedMapReduceOperation
 import piwonka.maryl.yarn.ApplicationMaster
 
+/**
+ * Handler used to receive callbacks from different NodeManagers running subtasks of the application.
+ * @param appMaster The ApplicationMaster to be notified of callbacks
+ * @note mainly used to trigger a task repeat of a failed task through the application master
+ */
 case class NMCallbackHandler(appMaster:ApplicationMaster) extends NMClientAsync.AbstractCallbackHandler{
   private val logger = LoggerFactory.getLogger(classOf[NMCallbackHandler])
 
