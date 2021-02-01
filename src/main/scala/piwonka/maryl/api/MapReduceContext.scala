@@ -1,7 +1,5 @@
 package piwonka.maryl.api
-
 import org.apache.hadoop.fs.Path
-
 /**
  * Wraps all possible parameters of the MapReduce-Job
  *
@@ -42,7 +40,6 @@ case class MapReduceContext[T, U]
   outputParser: ((String, U)) => String,
   mergeFactor: Int,
   comparer: ((String, U), (String, U)) => (String, U)) extends Serializable {
-
   /**
    * Allows for shorthand creation of small MapReduce-Jobs.
    * Presets:

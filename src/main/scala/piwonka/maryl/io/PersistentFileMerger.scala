@@ -15,7 +15,6 @@ import scala.concurrent.{Await, Future}
  * @param outputParser The parser used to transform data into a string when writing the merge output
  * */
 case class PersistentFileMerger[U](id: Int, mergeFactor: Int, dir: Path, outputParser: U => String, inputParser: String => U, comparer: (U, U) => U)(implicit fs:FileSystem, fc:FileContext) {
-
   /**
    * Checks the copied files and merges them persistently, when needed
    * @return A FileMergingIterator that is used to merge remaining data in-memory
@@ -28,7 +27,6 @@ case class PersistentFileMerger[U](id: Int, mergeFactor: Int, dir: Path, outputP
     val mergeResults = mergePersistent(files)
     FileMergingIterator[U](inputParser, comparer, mergeResults.filter(fs.exists(_)))
   }
-
   /**
    * Persistently merges files through multiple merge rounds.
    * merges are performed on file groups in parallel.
@@ -44,7 +42,6 @@ case class PersistentFileMerger[U](id: Int, mergeFactor: Int, dir: Path, outputP
     }).map(Await.result(_, Duration.Inf))
     mergePersistent(result, round + 1)//repeat until recursion anchor is met
   }
-
   /**
   *Persistently merges Groups of files through a FileMergingIterator
   *@returns The file resulting from the merge

@@ -117,10 +117,3 @@ abstract class ApplicationMaster(yarnContext: YarnContext)(implicit fs:FileSyste
 
   def getProgress(): Float
 }
-
-
-
-
-
-
-
